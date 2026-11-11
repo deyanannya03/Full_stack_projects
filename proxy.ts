@@ -1,19 +1,14 @@
+// proxy.ts
 import arcjet, { detectBot, shield } from "@arcjet/next";
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { clerkMiddleware } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
-const isProtectedRoute = createRouteMatcher([
-  "/workspace(.*)",
-  "/projects(.*)",
-]);
+if (!process.env.ARCJET_KEY) throw new Error("ARCJET_KEY is not set");
 
-// ─── Global Arcjet client ─────────────────────────────────────────────────────
-// Runs on every request. Looser than the route-level client — allows search
-// engines and link previews so the landing page gets indexed and
-// Slack/Twitter unfurls work.
-
+// Runs on every request. Allows search engines and link previews so the
+// landing page gets indexed and Slack/Twitter unfurls work.
 const aj = arcjet({
-  key: process.env.ARCJET_KEY!,
+  key: process.env.ARCJET_KEY,
   rules: [
     shield({ mode: "LIVE" }),
     detectBot({
@@ -23,18 +18,21 @@ const aj = arcjet({
   ],
 });
 
-export default clerkMiddleware(async (auth, req) => {
-  const decision = await aj.protect(req);
-  if (decision.isDenied()) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+// clerkMiddleware must stay in place so auth() works in layouts and routes.
+export default clerkMiddleware(async (_auth, req) => {
+  // Webhooks verify themselves with signatures, so skip bot detection.
+  if (req.nextUrl.pathname.startsWith("/api/webhooks")) {
+    return NextResponse.next();
   }
 
-  // Clerk auth guard — redirect unauthenticated users away from /workspace
-  const { userId } = await auth();
+  const decision = await aj.protect(req);
 
-  if (!userId && isProtectedRoute(req)) {
-    const { redirectToSignIn } = await auth();
-    return redirectToSignIn();
+  if (decision.isErrored()) {
+    console.error("Arcjet error:", decision.reason); // fails open on purpose
+  }
+
+  if (decision.isDenied()) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   return NextResponse.next();

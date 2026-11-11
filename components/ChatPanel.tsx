@@ -11,13 +11,14 @@ import {
   Square,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import ReactMarkdown from "react"
+import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { PricingModal } from "@/components/pricingmodel";
 import type { Message, StatusStep } from "@/Types/workspace";
 import { createClient } from "@supabase/supabase-js";
 import { BlueTitle } from "./reusables";
 import Image from "next/image";
+
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -239,7 +240,7 @@ export function ChatPanel({
                       ) : (
                         // Normal completed assistant message
                         <div className="prose prose-sm prose-invert max-w-none wrap-break-word text-[13px] leading-relaxed text-white/70 [&_code]:rounded [&_code]:bg-white/10 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-blue-300/80 [&_code]:text-xs [&_code]:break-all [&_li]:my-0.5 [&_p]:my-1 [&_pre]:overflow-x-auto! [&_pre]:whitespace-pre-wrap! [&_ul]:my-1">
-                          <ReactMarkdown>{msg.content}</ReactMarkdown>
+                           <ReactMarkdown>{msg.content}</ReactMarkdown> 
                         </div>
                       )}
                     </div>

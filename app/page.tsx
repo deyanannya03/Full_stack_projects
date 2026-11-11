@@ -1,7 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth, SignInButton } from "@clerk/nextjs";
+import { useAuth, SignInButton } from "@clerk/nextjs"
 import { CheckoutButton } from "@clerk/nextjs/experimental";
 import { ArrowRight, Zap, ChevronRight, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -16,10 +16,8 @@ import {
   SectionHeading,
   SectionLabel,
 } from "@/components/reusables";
-import { checkUser } from "@/lib/checkUser";
 
-export default async function LandingPage() {
-  const User = await checkUser();
+export default function LandingPage() {
     const { isSignedIn, has } = useAuth();
   const router = useRouter();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -96,6 +94,7 @@ export default async function LandingPage() {
           >
             <textarea
               ref={textareaRef}
+              aria-label="Describe the app you want to build"
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               onKeyDown={handleKeyDown}

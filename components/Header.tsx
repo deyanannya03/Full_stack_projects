@@ -23,6 +23,7 @@ export default async function Header() {
             alt="Forge"
             width={100}
             height={100}
+            priority
             className="h-9 w-auto rounded-md"
           />
         </Link>
