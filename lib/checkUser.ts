@@ -1,3 +1,4 @@
+
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { db } from "./prisma";
 import { PLANS } from "./constants";
@@ -5,62 +6,83 @@ import type { Plan } from "@/Types/plans";
 
 const getCurrentPlan = async (): Promise<Plan> => {
   const { has } = await auth();
+
   if (has({ plan: "pro" })) return "pro";
   if (has({ plan: "starter" })) return "starter";
+
   return "free";
 };
 
 export const checkUser = async () => {
-  const user = await currentUser();
-  if (!user) return null;
+  const { userId } = await auth();
+
+  if (!userId) return null;
 
   try {
     const currentPlan = await getCurrentPlan();
 
-    const existing = await db.user.findUnique({
-      where: { clerkId: user.id },
-    });
+    // Check whether the user already exists
+    const existingUser = await db.orm.public.User
+      .whereUnique({ id: userId })
+      .first();
 
-    if (existing) {
-      if (existing.plan !== currentPlan) {
-        // Only top up credits on upgrade (positive delta), not on downgrade
-        const existingPlanCredits = PLANS[existing.plan as Plan]?.credits ?? 0;
-        const newPlanCredits = PLANS[currentPlan].credits;
-        const creditDelta = newPlanCredits - existingPlanCredits;
+    if (existingUser) {
+      // Check whether the subscription plan changed
+      if (existingUser.plan !== currentPlan) {
+        const oldCredits =
+          PLANS[existingUser.plan as Plan]?.credits ?? 0;
 
-        // Use updateMany with the old plan in the where clause to prevent
-        // race conditions from double-crediting on concurrent requests
-        await db.user.updateMany({
-          where: { clerkId: user.id, plan: existing.plan },
-          data: {
+        const newCredits = PLANS[currentPlan].credits;
+
+        const creditDelta = newCredits - oldCredits;
+
+        // Update plan and credits
+        await db.orm.public.User
+          .whereUnique({ id: userId })
+          .update({
             plan: currentPlan,
             credits:
               creditDelta > 0
-                ? existing.credits + creditDelta
-                : existing.credits,
-          },
-        });
+                ? existingUser.credits + creditDelta
+                : existingUser.credits,
+          });
 
-        // Re-fetch and return the updated record
-        return await db.user.findUnique({ where: { clerkId: user.id } });
+        // Return updated user
+        return await db.orm.public.User
+          .whereUnique({ id: userId })
+          .first();
       }
 
-      return existing;
+      return existingUser;
     }
 
-    // New user — create with free plan credits
-    return await db.user.create({
-      data: {
-        clerkId: user.id,
-        name: `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim(),
-        email: user.emailAddresses[0].emailAddress,
-        imageUrl: user.imageUrl ?? "",
-        credits: PLANS.free.credits,
-        plan: "free",
-      },
+    // Get user information from Clerk
+    const user = await currentUser();
+
+    if (!user) return null;
+
+    const email =
+      user.primaryEmailAddress?.emailAddress ??
+      user.emailAddresses[0]?.emailAddress;
+
+    if (!email) {
+      throw new Error("User email not found");
+    }
+
+    // Create a new user
+    const newUser = await db.orm.public.User.create({
+      clerkId: userId,
+      name: `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim(),
+      email,
+      imageUrl: user.imageUrl ?? "",
+      credits: PLANS[currentPlan].credits,
+      plan: currentPlan,
     });
+
+    return newUser;
+
   } catch (error) {
-    console.error("checkUser error:", error);
+    console.error("Error in checkUser:", error);
     return null;
   }
 };
